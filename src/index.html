@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vrew 이미지 자동 배치</title>
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --card: #ffffff;
+    --ink: #1a1d21;
+    --muted: #5b6169;
+    --line: #d8dce1;
+    --accent: #1f6feb;
+    --accent-ink: #ffffff;
+    --ok: #17803d;
+    --bad: #b3261e;
+    --okbg: #e8f5ec;
+    --badbg: #fdeceb;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 32px 20px 60px;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Malgun Gothic", "Apple SD Gothic Neo", "Pretendard", sans-serif;
+    font-size: 19px;
+    line-height: 1.65;
+  }
+  .wrap { max-width: 700px; margin: 0 auto; }
+  h1 { font-size: 30px; margin: 0 0 6px; letter-spacing: -0.5px; }
+  .sub { color: var(--muted); font-size: 17px; margin-bottom: 26px; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 26px;
+    margin-bottom: 18px;
+  }
+
+  #drop {
+    border: 3px dashed var(--line);
+    border-radius: 14px;
+    padding: 54px 24px;
+    text-align: center;
+    background: var(--card);
+    transition: border-color .15s, background .15s;
+  }
+  #drop.hot { border-color: var(--accent); background: #eef4ff; }
+  #drop .big { font-size: 23px; font-weight: 700; margin-bottom: 8px; }
+  #drop .small { color: var(--muted); font-size: 17px; }
+
+  button {
+    font: inherit;
+    font-weight: 700;
+    border: 0;
+    border-radius: 10px;
+    padding: 15px 30px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    cursor: pointer;
+  }
+  button:hover:not(:disabled) { filter: brightness(1.08); }
+  button:disabled { background: #b9bec5; cursor: default; }
+  button.ghost {
+    background: var(--card);
+    color: var(--ink);
+    border: 2px solid var(--line);
+    padding: 13px 26px;
+  }
+  .mt { margin-top: 18px; }
+
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 7px 0; vertical-align: top; }
+  td.k { color: var(--muted); width: 116px; white-space: nowrap; }
+  td.v { word-break: break-all; }
+
+  .hint {
+    background: #fff8e6;
+    border: 1px solid #f0dca8;
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-size: 17px;
+    margin-top: 16px;
+  }
+  .ok  { background: var(--okbg);  border: 1px solid #a8d8b9; border-radius: 10px; padding: 18px; }
+  .bad { background: var(--badbg); border: 1px solid #f0b3ae; border-radius: 10px; padding: 18px; }
+  .ok b { color: var(--ok); }
+  .bad b { color: var(--bad); }
+  .file {
+    font-weight: 700;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin: 12px 0;
+    word-break: break-all;
+  }
+  .steps { color: var(--muted); font-size: 17px; }
+  .steps div { padding: 3px 0; }
+  .hide { display: none; }
+  code {
+    background: #eceff3;
+    border-radius: 5px;
+    padding: 2px 7px;
+    font-size: 16px;
+    word-break: break-all;
+  }
+  details { margin-top: 14px; }
+  summary { cursor: pointer; color: var(--muted); font-size: 17px; }
+  .list { font-size: 15px; color: var(--muted); margin-top: 10px; max-height: 230px; overflow: auto; }
+  .list div { padding: 2px 0; font-variant-numeric: tabular-nums; }
+  .note {
+    border-radius: 10px;
+    padding: 13px 15px;
+    margin-top: 11px;
+    font-size: 17px;
+    border: 1px solid;
+  }
+  .note b { display: block; margin-top: 3px; }
+  .note .nd { color: var(--muted); font-size: 16px; margin-top: 4px; }
+  .tag {
+    display: inline-block;
+    font-size: 14px;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 9px;
+    color: #fff;
+  }
+  .nStop { background: var(--badbg); border-color: #f0b3ae; }
+  .nStop .tag { background: var(--bad); }
+  .nWarn { background: #fff8e6; border-color: #f0dca8; }
+  .nWarn .tag { background: #a9762a; }
+  .nInfo { background: #eef4ff; border-color: #c2d5f5; }
+  .nInfo .tag { background: #3f6ab0; }
+  .pass {
+    background: var(--okbg);
+    border: 1px solid #a8d8b9;
+    border-radius: 10px;
+    padding: 13px 15px;
+    margin-top: 11px;
+    font-size: 17px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Vrew 이미지 자동 배치</h1>
+  <div class="sub">이미지 번호에 맞는 장면을 찾아 영상에 깔아 줍니다.</div>
+
+  <!-- 1단계 : 폴더 넣기 -->
+  <div id="step1">
+    <div id="drop">
+      <div class="big">폴더를 여기에 끌어다 놓으세요</div>
+      <div class="small">또는</div>
+      <div class="mt"><button id="pick">폴더 선택하기</button></div>
+    </div>
+    <div class="hint">
+      <b>폴더 안에 이 세 가지가 있어야 합니다.</b>
+      <div style="margin-top:8px">
+        · Vrew 파일 <code>.vrew</code><br>
+        · 장면 목록 파일 <code>_flow_prompts.txt</code><br>
+        · 이미지 <code>001-1.jpeg</code> …
+      </div>
+      <div style="margin-top:8px;font-size:16px">
+        장면 목록은 이미지를 만들 때 쓴 파일입니다.
+        여기 적힌 문장을 찾아 몇 번째 자막부터 이미지를 깔지 정합니다.
+      </div>
+    </div>
+  </div>
+
+  <!-- 2단계 : 확인 -->
+  <div id="step2" class="hide">
+    <div class="card">
+      <table>
+        <tr><td class="k">Vrew 파일</td><td class="v" id="iVrew"></td></tr>
+        <tr><td class="k">장면 목록</td><td class="v" id="iScript"></td></tr>
+        <tr><td class="k">이미지</td><td class="v" id="iImg"></td></tr>
+      </table>
+      <div id="warn"></div>
+      <div class="mt">
+        <button id="go">시작하기</button>
+        <button id="again" class="ghost">다시 고르기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3단계 : 진행 -->
+  <div id="step3" class="hide">
+    <div class="card">
+      <div style="font-size:22px;font-weight:700;margin-bottom:12px">배치하는 중입니다</div>
+      <div class="steps" id="log"></div>
+    </div>
+  </div>
+
+  <!-- 4단계 : 결과 -->
+  <div id="step4" class="hide">
+    <div class="card">
+      <div id="result"></div>
+      <div class="mt"><button id="restart" class="ghost">다른 폴더 작업하기</button></div>
+    </div>
+  </div>
+
+</div>
+
+<script type="module">
+import { readZip, entryBytes, writeZip } from './vrewzip.js';
+import { parseScript, parseImages, align, buildRanges, inject, imageRatio, diagnose } from './vrewcore.js';
+
+const $ = (id) => document.getElementById(id);
+const show = (id) => $(id).classList.remove('hide');
+const hide = (id) => $(id).classList.add('hide');
+
+let picked = null;   // {vrew, script, images[]}
+
+// ---------------------------------------------------------- 파일 모으기
+
+const IMG_RE = /^(\d+)-(\d+)\.(jpe?g|png)$/i;
+
+// 폴더 안 파일 목록에서 필요한 세 가지를 알아서 찾는다.
+function classify(files) {
+  const vrews = [], txts = [], imgs = [];
+  for (const f of files) {
+    const name = f.name;
+    if (/\.vrew$/i.test(name)) vrews.push(f);
+    else if (/\.txt$/i.test(name)) txts.push(f);
+    else if (IMG_RE.test(name)) imgs.push(f);
+  }
+  if (!vrews.length) {
+    throw new Error(
+      'Vrew 파일(.vrew)이 폴더 안에 없습니다.\n\n' +
+      'Vrew에서 대본을 넣고 목소리(TTS)까지 만든 다음,\n' +
+      '[파일] → [다른 이름으로 저장]을 눌러 이 폴더에 저장해 주세요.\n\n' +
+      '이미지는 넣지 않은 상태로 저장하면 됩니다.');
+  }
+  if (!imgs.length) {
+    throw new Error(
+      '이미지를 찾지 못했습니다.\n\n' +
+      '이미지 이름이 001-1.jpeg 처럼\n' +
+      '앞에 세 자리 번호로 시작해야 합니다.\n\n' +
+      '이미지가 든 폴더째로 넣으셨는지 확인해 주세요.');
+  }
+  if (!txts.length) {
+    throw new Error(
+      '장면 목록 파일을 찾지 못했습니다.\n\n' +
+      '이미지를 만들 때 쓴 _flow_prompts.txt 파일을\n' +
+      '이 폴더에 함께 넣어 주세요.');
+  }
+
+  // .vrew가 여러 개면 가장 작은 것 = 이미지가 아직 안 들어간 것
+  vrews.sort((a, b) => a.size - b.size);
+  return { vrew: vrews[0], vrewAll: vrews, txts, images: imgs };
+}
+
+// .txt 후보 중 장면 목록으로 읽히는 것을 고른다.
+async function chooseScript(txts) {
+  const errs = [];
+  for (const f of txts) {
+    try {
+      const t = await f.text();
+      const s = parseScript(t);
+      if (s.size >= 2) return { file: f, script: s };
+    } catch (e) { errs.push(f.name + ': ' + e.message); }
+  }
+  throw new Error('장면 목록을 읽지 못했습니다.\n' + errs.join('\n'));
+}
+
+async function accept(files) {
+  try {
+    const c = classify(files);
+    const { file: sfile, script } = await chooseScript(c.txts);
+    const images = parseImages(c.images);
+
+    picked = { vrew: c.vrew, scriptFile: sfile, script, images, rawImages: c.images };
+
+    $('iVrew').textContent = c.vrew.name + '  (' + mb(c.vrew.size) + ')';
+    $('iScript').textContent = sfile.name + '  —  장면 ' + script.size + '개';
+    $('iImg').textContent = images.size + '장';
+
+    // 여기서 Vrew를 미리 열어 실제로 맞춰 보고 위험 요소를 찾는다
+    $('warn').innerHTML = '<div class="hint">점검하는 중입니다…</div>';
+    hide('step1'); show('step2');
+    $('go').disabled = true;
+    await new Promise((r) => setTimeout(r, 20));
+
+    let notes = [];
+    try {
+      const ab = await c.vrew.arrayBuffer();
+      const entries = readZip(ab);
+      const pj = entries.find((e) => e.name === 'project.json');
+      if (!pj) throw new Error('Vrew 파일 안에 project.json이 없습니다.');
+      const project = JSON.parse(new TextDecoder('utf-8').decode(entryBytes(ab, pj)));
+      picked.clipCount = project.transcript.clips.length;
+      notes = diagnose(project, script, images, project.transcript.clips);
+    } catch (e) {
+      notes = [{ level: 'stop', title: 'Vrew 파일을 열지 못했습니다', detail: e.message }];
+    }
+
+    if (c.vrewAll.length > 1) {
+      notes.unshift({
+        level: 'info',
+        title: 'Vrew 파일이 ' + c.vrewAll.length + '개 있습니다',
+        detail: '이미지가 들어 있지 않은 ' + c.vrew.name + ' 을 사용합니다.',
+      });
+    }
+
+    picked.notes = notes;
+    const stops = notes.filter((n) => n.level === 'stop');
+    $('warn').innerHTML = renderNotes(notes);
+    $('go').disabled = stops.length > 0;
+    $('go').textContent = stops.length ? '이대로는 시작할 수 없습니다' : '시작하기';
+  } catch (e) {
+    fail(e.message);
+  }
+}
+
+const mb = (n) => (n / 1048576).toFixed(0) + 'MB';
+
+// 점검 결과를 등급별로 보여준다.
+function renderNotes(notes) {
+  if (!notes.length) {
+    return '<div class="pass">문제가 될 만한 점이 없습니다.</div>';
+  }
+  const order = { stop: 0, warn: 1, info: 2 };
+  const label = { stop: '막힘', warn: '확인', info: '참고' };
+  const cls = { stop: 'nStop', warn: 'nWarn', info: 'nInfo' };
+  let html = '';
+  for (const n of [...notes].sort((a, b) => order[a.level] - order[b.level])) {
+    html += '<div class="note ' + cls[n.level] + '">' +
+            '<span class="tag">' + label[n.level] + '</span>' +
+            '<b>' + esc(n.title) + '</b>' +
+            '<div class="nd">' + esc(n.detail).replace(/\n/g, '<br>') + '</div></div>';
+  }
+  if (notes.some((n) => n.level === 'stop')) {
+    html += '<div class="hint">위 <b>막힘</b> 항목을 먼저 해결해 주세요.</div>';
+  }
+  return html;
+}
+
+// ---------------------------------------------------------- 실행
+
+async function run() {
+  hide('step2'); show('step3');
+  const log = $('log');
+  log.innerHTML = '';
+  const say = (t) => { log.innerHTML += '<div>' + t + '</div>'; };
+  const tick = () => new Promise((r) => setTimeout(r, 30));
+
+  try {
+    say('Vrew 파일 여는 중…');
+    await tick();
+    const ab = await picked.vrew.arrayBuffer();
+    const entries = readZip(ab);
+    const pj = entries.find((e) => e.name === 'project.json');
+    if (!pj) throw new Error('Vrew 파일 안에 project.json이 없습니다.');
+    const project = JSON.parse(new TextDecoder('utf-8').decode(entryBytes(ab, pj)));
+    const clips = project.transcript.clips;
+    say('자막 ' + clips.length.toLocaleString() + '개를 찾았습니다.');
+    await tick();
+
+    // 이미지가 이미 들어있으면 경고
+    const already = Object.values(project.props.tracks).filter((v) => v.type === 'image').length;
+    if (already) {
+      say('<b>이미 이미지 ' + already + '장이 들어 있습니다.</b> 그 위에 새로 추가됩니다.');
+    }
+
+    say('장면 목록과 자막 맞추는 중…');
+    await tick();
+
+    // 이미지가 있는 번호만 사용
+    const script = new Map();
+    for (const [n, t] of picked.script) if (picked.images.has(n)) script.set(n, t);
+
+    const starts = align(script, clips);
+    const ranges = buildRanges(starts, clips.length);
+    say(ranges.size + '개 구간을 맞췄습니다.');
+    await tick();
+
+    say('이미지 읽는 중…');
+    await tick();
+    const ratios = new Map();
+    const bytes = new Map();
+    for (const [num, f] of picked.images) {
+      if (!script.has(num)) continue;
+      const b = new Uint8Array(await f.arrayBuffer());
+      bytes.set(num, b);
+      ratios.set(num, imageRatio(b));
+    }
+
+    const plan = inject(project, ranges, picked.images, ratios);
+    say('이미지 ' + plan.length + '장을 배치했습니다.');
+    await tick();
+
+    say('파일 만드는 중… (조금 걸립니다)');
+    await tick();
+
+    const items = [];
+    for (const e of entries) {
+      if (e.name === 'project.json') continue;
+      items.push({ name: e.name, bytes: entryBytes(ab, e) });
+    }
+    items.push({ name: 'project.json', bytes: new TextEncoder().encode(JSON.stringify(project)) });
+    for (const p of plan) items.push({ name: 'media/' + p.mediaName, bytes: bytes.get(p.num) });
+
+    const blob = writeZip(items);
+    const outName = picked.vrew.name.replace(/\.vrew$/i, '') + '_이미지배치.vrew';
+
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = outName;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+
+    hide('step3'); show('step4');
+    let rows = '';
+    for (const p of plan) {
+      rows += '<div>' + String(p.num).padStart(3, '0') + '번 · ' + p.file.name +
+              ' · 자막 ' + (p.start + 1) + '~' + (p.end + 1) + ' · ' + p.anim + '</div>';
+    }
+    const skipped = plan.length < picked.script.size
+      ? '<div style="margin-top:8px">장면 ' + picked.script.size + '개 중 ' + plan.length + '개에 이미지를 넣었습니다.</div>'
+      : '';
+    $('result').innerHTML =
+      '<div class="ok"><b style="font-size:22px">완료되었습니다</b>' +
+      '<div class="file">' + outName + '</div>' +
+      '<div>다운로드 폴더에 저장했습니다. Vrew에서 이 파일을 열어 주세요.</div>' + skipped +
+      '<div style="margin-top:8px;font-size:17px">원래 파일은 그대로 있습니다.</div></div>' +
+      '<details><summary>배치 내용 자세히 보기</summary><div class="list">' + rows + '</div></details>' +
+      ((picked.notes || []).filter((n) => n.level !== 'info').length
+        ? '<details><summary>확인이 필요한 점 다시 보기</summary>' +
+          renderNotes(picked.notes.filter((n) => n.level !== 'info')) + '</details>'
+        : '');
+
+  } catch (e) {
+    hide('step3');
+    fail(e.message);
+  }
+}
+
+function fail(msg) {
+  show('step4');
+  $('result').innerHTML =
+    '<div class="bad"><b style="font-size:22px">문제가 생겼습니다</b>' +
+    '<div style="margin-top:10px;white-space:pre-wrap">' + esc(msg) + '</div>' +
+    '<div style="margin-top:12px;font-size:17px">이 화면을 사진으로 찍어 보내 주세요.</div></div>';
+}
+
+const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+
+// ---------------------------------------------------------- 입력 받기
+
+const drop = $('drop');
+['dragenter', 'dragover'].forEach((ev) =>
+  drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('hot'); }));
+['dragleave', 'drop'].forEach((ev) =>
+  drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('hot'); }));
+
+// 끌어다 놓기 — 폴더 안을 재귀로 훑는다
+//
+// 주의: dataTransfer 의 items/files 는 이 핸들러가 await 를 만나는
+// 순간 비워진다. 그래서 필요한 것을 먼저 동기적으로 다 꺼내 둔다.
+drop.addEventListener('drop', (e) => {
+  e.preventDefault();
+
+  const entries = [];
+  const dt = e.dataTransfer;
+
+  if (dt.items && dt.items.length) {
+    for (const item of dt.items) {
+      if (item.kind && item.kind !== 'file') continue;
+      const en = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
+      if (en) entries.push(en);
+    }
+  }
+  const plain = dt.files ? [...dt.files] : [];
+
+  // 여기서부터 비동기 — 위에서 이미 다 꺼내 두었으므로 안전하다
+  (async () => {
+    try {
+      if (entries.length) {
+        const files = [];
+        for (const en of entries) await walk(en, files);
+        if (files.length) return accept(files);
+      }
+      if (plain.length) {
+        // 폴더를 못 읽는 브라우저에서는 파일만 넘어온다
+        return accept(plain);
+      }
+      fail('폴더를 읽지 못했습니다.\n\n' +
+           '아래 [폴더 선택하기] 버튼을 눌러\n' +
+           '같은 폴더를 골라 주세요.');
+    } catch (err) {
+      fail('폴더를 읽는 중 문제가 생겼습니다.\n' + err.message +
+           '\n\n아래 [폴더 선택하기] 버튼을 사용해 주세요.');
+    }
+  })();
+});
+
+// 폴더 하나를 끝까지 훑어 File 목록을 모은다.
+function walk(entry, out, depth = 0) {
+  return new Promise((resolve) => {
+    if (!entry || depth > 4) return resolve();
+
+    if (entry.isFile) {
+      entry.file(
+        (f) => { out.push(f); resolve(); },
+        () => resolve());
+      return;
+    }
+
+    if (!entry.isDirectory) return resolve();
+
+    const reader = entry.createReader();
+    const found = [];
+
+    // readEntries 는 한 번에 100개까지만 준다. 빈 배열이 올 때까지 반복.
+    const readMore = () => {
+      reader.readEntries((ents) => {
+        if (!ents.length) {
+          (async () => {
+            for (const child of found) await walk(child, out, depth + 1);
+            resolve();
+          })();
+          return;
+        }
+        found.push(...ents);
+        readMore();
+      }, () => resolve());
+    };
+    readMore();
+  });
+}
+
+// 폴더 선택 버튼
+$('pick').addEventListener('click', () => {
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.webkitdirectory = true;
+  inp.multiple = true;
+  inp.addEventListener('change', () => {
+    if (inp.files.length) accept([...inp.files]);
+  });
+  inp.click();
+});
+
+$('go').addEventListener('click', run);
+$('again').addEventListener('click', reset);
+$('restart').addEventListener('click', reset);
+
+function reset() {
+  picked = null;
+  $('go').disabled = false;
+  $('go').textContent = '시작하기';
+  hide('step2'); hide('step3'); hide('step4');
+  show('step1');
+}
+</script>
+</body>
+</html>
